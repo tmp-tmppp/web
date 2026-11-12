@@ -41,7 +41,7 @@
     "graphql": "16.14.2",
     "jsdom": "31.0.0",
     "msw": "3.0.4",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
     "typescript-eslint": "8.72.2",
     "vite": "8.3.8",
     "vitest": "5.1.0",
