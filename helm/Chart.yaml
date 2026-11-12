@@ -1,0 +1,7 @@
+apiVersion: v2
+name: web
+description: Web UI of Chance (a single-page app served by an unprivileged nginx behind the API gateway).
+type: application
+# Chart version: bump on every change to the chart. The image tag is set by the pipeline (sha-<commit>).
+version: 0.1.0
+appVersion: "0.1.0"

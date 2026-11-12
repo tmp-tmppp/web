@@ -1,0 +1,7 @@
+{
+  "issuer": "http://localhost:8081/realms/chance",
+  "clientId": "web",
+  "apiBase": "",
+  "depositSuccessPath": "/deposits/success",
+  "depositCancelPath": "/deposits/cancelled"
+}

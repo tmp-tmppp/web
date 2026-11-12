@@ -1,0 +1,35 @@
+#!/bin/sh
+# Sourced by the entrypoint of the base image before the nginx templates are rendered. It reads the issuer from
+# config.json (the one place that says where Keycloak is) and exports its origin as CHANCE_ISSUER_ORIGIN, which the
+# Content-Security-Policy of default.conf.template uses in connect-src. One image therefore fits every environment: a
+# new issuer is a new config.json and a restart, never a new build.
+#
+# The value goes into a response header, so only a plain origin is accepted (http or https, host name or IPv4 address,
+# optional port); anything else stops the container with a message instead of producing a broken or unsafe policy.
+config=/usr/share/nginx/html/config.json
+
+issuer=$(sed -n 's/.*"issuer"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$config" 2>/dev/null | head -n 1)
+origin=$(printf '%s' "$issuer" | sed -n 's#^\(https\{0,1\}://[A-Za-z0-9._-]\{1,253\}\(:[0-9]\{1,5\}\)\{0,1\}\)\(/.*\)\{0,1\}$#\1#p')
+
+if [ -z "$origin" ]; then
+    echo "18-chance-csp.envsh: $config has no \"issuer\" that is an http(s) URL (host name or IPv4 address, optional port)" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
+# The optional audit-export function (config.json "auditExportUrl", another origin than the gateway): when it is set,
+# its origin joins connect-src, otherwise the variable is exported empty. It must always be exported, because the
+# image's envsubst step only replaces variables that are defined and would leave "${CHANCE_AUDIT_EXPORT_ORIGIN}" in the
+# header (and nginx would then refuse to start) if it were missing.
+export_url=$(sed -n 's/.*"auditExportUrl"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$config" 2>/dev/null | head -n 1)
+export_origin=""
+if [ -n "$export_url" ]; then
+    export_origin=$(printf '%s' "$export_url" | sed -n 's#^\(https\{0,1\}://[A-Za-z0-9._-]\{1,253\}\(:[0-9]\{1,5\}\)\{0,1\}\)\(/.*\)\{0,1\}$#\1#p')
+    if [ -z "$export_origin" ]; then
+        echo "18-chance-csp.envsh: $config has an \"auditExportUrl\" that is not an http(s) URL (host name or IPv4 address, optional port)" >&2
+        return 1 2>/dev/null || exit 1
+    fi
+fi
+
+export CHANCE_ISSUER_ORIGIN="$origin"
+export CHANCE_AUDIT_EXPORT_ORIGIN="$export_origin"
+echo "18-chance-csp.envsh: connect-src allows 'self', $origin${export_origin:+ and $export_origin}"

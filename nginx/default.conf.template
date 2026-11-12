@@ -1,0 +1,76 @@
+# Server block of the web image. The base image's entrypoint renders this file into /etc/nginx/conf.d/default.conf
+# when the container starts; envsubst replaces only ${CHANCE_ISSUER_ORIGIN} and ${CHANCE_AUDIT_EXPORT_ORIGIN} (both set by
+# 18-chance-csp.envsh, from the issuer and the optional auditExportUrl in config.json; the second may be empty).
+# nginx's own variables ($uri, $request_method) are left alone.
+#
+# Rules (plan INF-02, ADR-024):
+#   index.html and every file outside assets/   Cache-Control: no-cache (revalidated with the ETag)
+#   assets/                                     hashed file names: cached for a year, immutable
+#   any other path without a file extension     index.html (the app has client-side routes, /auth/callback is one)
+#   /v1/...                                     404 with Cache-Control: private, no-store; the gateway sends every path
+#                                               it does not route to this server, and an API client must not get HTML
+# add_header in a location replaces the headers of the server level, so each location includes the same snippet.
+
+server {
+    listen 8080;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    absolute_redirect off;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 512;
+    gzip_types text/css text/javascript application/javascript application/json image/svg+xml;
+
+    # A static site: reading only.
+    if ($request_method !~ ^(GET|HEAD)$) {
+        return 405;
+    }
+
+    # Readiness and liveness of the Pod, and the health check of the image; never cached, not logged.
+    location = /healthz {
+        access_log off;
+        include snippets/security-headers.conf;
+        add_header Cache-Control "no-store" always;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location ^~ /v1/ {
+        include snippets/security-headers.conf;
+        add_header Cache-Control "private, no-store" always;
+        default_type application/problem+json;
+        return 404 '{"type":"about:blank","title":"Not Found","status":404}';
+    }
+
+    location ^~ /assets/ {
+        include snippets/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # The document. The build has no inline script and no inline style, so the policy needs no 'unsafe-inline'.
+    # connect-src: the API (same origin, the gateway), the identity provider (token endpoint and discovery) and, when
+    # config.json names one, the audit-export function (empty otherwise, see 18-chance-csp.envsh).
+    location = /index.html {
+        include snippets/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' ${CHANCE_ISSUER_ORIGIN} ${CHANCE_AUDIT_EXPORT_ORIGIN}; manifest-src 'self'; worker-src 'none'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+    }
+
+    # config.json, favicon.svg and any other file: a missing one is a 404, not the app.
+    location ~ \.[A-Za-z0-9]+$ {
+        include snippets/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri =404;
+    }
+
+    # Every other path is a route of the app.
+    location / {
+        include snippets/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri /index.html;
+    }
+}

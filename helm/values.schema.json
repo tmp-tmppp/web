@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Values of the web chart",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "replicaCount", "service", "config", "resources", "probes", "networkPolicy", "smokeTest"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "digest": { "type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "replicaCount": { "type": "integer", "minimum": 1, "maximum": 5 },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port"],
+      "properties": { "port": { "type": "integer", "minimum": 1, "maximum": 65535 } }
+    },
+    "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+    "config": {
+      "type": "object",
+      "description": "Content of config.json. Public: never put a secret here.",
+      "additionalProperties": false,
+      "required": ["issuer", "clientId", "apiBase", "depositSuccessPath", "depositCancelPath"],
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "description": "http(s) address of the Keycloak realm; its origin goes into the Content-Security-Policy (host name or IPv4 address, optional port). Empty means not set yet (values-prod.yaml until the pipeline sets the public host): the chart still renders, and the container refuses to start.",
+          "pattern": "^(https?://[A-Za-z0-9._-]{1,253}(:[0-9]{1,5})?(/.*)?)?$"
+        },
+        "clientId": { "type": "string", "minLength": 1 },
+        "apiBase": { "type": "string", "pattern": "^(https?://[^\\s]+)?$" },
+        "depositSuccessPath": { "type": "string", "pattern": "^/[^\\s?#]*$" },
+        "depositCancelPath": { "type": "string", "pattern": "^/[^\\s?#]*$" },
+        "auditExportUrl": {
+          "type": "string",
+          "description": "Optional address of the audit-export function, without a query; empty or absent means no Export control. Its origin goes into the Content-Security-Policy (host name or IPv4 address, optional port).",
+          "pattern": "^(https?://[A-Za-z0-9._-]{1,253}(:[0-9]{1,5})?(/[^\\s?#]*)?)?$"
+        }
+      }
+    },
+    "resources": { "type": "object" },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startup", "readiness", "liveness"],
+      "properties": {
+        "startup": { "$ref": "#/definitions/probe" },
+        "readiness": { "$ref": "#/definitions/probe" },
+        "liveness": { "$ref": "#/definitions/probe" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "gatewayNamespaceLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+        "gatewayPodLabels": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "smokeTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": { "image": { "type": "string", "minLength": 1 } }
+    }
+  },
+  "definitions": {
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "periodSeconds", "failureThreshold"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^/" },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

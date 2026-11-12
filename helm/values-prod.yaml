@@ -1,0 +1,17 @@
+# Prod overrides. The pipeline sets the image tag and digest; there is no Secret.
+replicaCount: 1
+
+config:
+  # The identity provider's public address as the browser sees it (https://<public host>/realms/chance, the gateway
+  # routes /realms/chance), as for AUTH_ISSUER of the services. Filled by the deploy pipeline from the organization
+  # variable PUBLIC_HOST (the repo's ci-cd.yml host-values); leave it empty here. Without it the container stops at
+  # start (18-chance-csp.envsh: no "issuer" that is an http(s) URL) instead of serving a page whose sign-in goes to
+  # localhost and whose tokens the services reject.
+  issuer: ""
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi

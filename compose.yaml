@@ -1,0 +1,36 @@
+# Runs the image the way the cluster does: unprivileged, read-only file system, no capabilities. The app answers on
+# http://localhost:5173, the address the realm of the identity service lets the client "web" return to
+# (CHANCE_WEB_URL there), so stop "npm run dev" first or change WEB_PORT and the identity service's CHANCE_WEB_URL.
+#
+# It serves the static files only. /v1/... and /checkout belong to the gateway, which the cluster puts in front: without
+# one, every API call of the app answers 404. For the pages with data use "npm run dev" (it proxies to a gateway).
+#
+#   docker compose up --build
+#   CHANCE_WEB_CONFIG=./other-config.json docker compose up    (another issuer or client: a config.json of your own)
+name: chance-web
+
+services:
+  web:
+    build: .
+    image: chance-web:local
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5173}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+      # The entrypoint renders the server block into this folder as the user 101, so the folder must belong to it.
+      - /etc/nginx/conf.d:uid=101,gid=101
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    configs:
+      - source: web-config
+        target: /usr/share/nginx/html/config.json
+
+# The runtime configuration (nothing in it is secret), mounted over the image's copy. The default is the development
+# config of the repository (Keycloak of the identity service on port 8081). A "file" config is used because an
+# inline "content" config cannot be added to a read-only service. The container reads the issuer from this file at
+# start: it sets the origin that the Content-Security-Policy allows in connect-src.
+configs:
+  web-config:
+    file: ${CHANCE_WEB_CONFIG:-./public/config.json}

@@ -1,0 +1,3 @@
+# Dev overrides (a local cluster): the defaults of values.yaml, which point at Keycloak on localhost:8081.
+config:
+  issuer: http://localhost:8081/realms/chance

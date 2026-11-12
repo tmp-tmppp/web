@@ -1,0 +1,70 @@
+# Defaults, safe for a local cluster. values-dev.yaml and values-prod.yaml override them; the pipeline sets
+# image.repository, image.tag (sha-<commit>) and image.digest with --set-string and never puts secrets into values
+# (the web UI has none: everything in config.json is public).
+#
+# The release must be named "web": the Service has the release's name and the gateway routes "/" to the Service "web".
+
+image:
+  repository: docker.io/example/web
+  tag: latest
+  # Digest of the image the pipeline built (sha256:...); when set, the Pod runs exactly that image.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  port: 8080
+
+# Pod annotations (the pipeline may add some).
+podAnnotations: {}
+
+# The runtime configuration, rendered into config.json of a ConfigMap and mounted over the file of the image. The page
+# reads it when it loads; nothing in it is secret. The issuer is also the origin that the Content-Security-Policy
+# allows in connect-src (read by the image at start). Every key is described in README.md.
+config:
+  # Address of the Keycloak realm as the browser reaches it (the "iss" of the tokens).
+  issuer: http://localhost:8081/realms/chance
+  clientId: web
+  # Prefix of every API call; empty = the same origin (the gateway), which is the normal case.
+  apiBase: ""
+  # Where the payment provider sends the buyer back; they must match DEPOSIT_SUCCESS_URL and DEPOSIT_CANCEL_URL of payments.
+  depositSuccessPath: /deposits/success
+  depositCancelPath: /deposits/cancelled
+  # Optional: address of the audit-export function (the proposed serverless export, plan question Q-13), without a
+  # query. Leave it out and the audit page shows no Export control. Its origin is added to connect-src at start.
+  # auditExportUrl: https://chance-audit-export.example/api/audit-export
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi
+
+probes:
+  startup:
+    path: /healthz
+    periodSeconds: 2
+    failureThreshold: 30
+  readiness:
+    path: /healthz
+    periodSeconds: 10
+    failureThreshold: 3
+  liveness:
+    path: /healthz
+    periodSeconds: 10
+    failureThreshold: 3
+
+# Admits only the API gateway to the HTTP port. Needs a network policy engine in the cluster (plan section 9).
+networkPolicy:
+  enabled: false
+  gatewayNamespaceLabels:
+    kubernetes.io/metadata.name: gateway
+  gatewayPodLabels:
+    app.kubernetes.io/name: traefik
+
+# Smoke test run by "helm test" after every deploy: the health endpoint, config.json and the cache rule of index.html,
+# all through the Service.
+smokeTest:
+  image: docker.io/library/busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4

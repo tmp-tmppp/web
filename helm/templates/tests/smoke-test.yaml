@@ -1,0 +1,41 @@
+# "helm test" after every deploy, through the Service: the health endpoint answers, config.json is served and names an
+# issuer, and index.html carries Cache-Control: no-cache (plan INF-02). A failure makes the pipeline roll the release
+# back (ADR-048).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "web.fullname" . }}-smoke-test
+  labels:
+    {{- include "web.labels" . | nindent 4 }}
+    app.kubernetes.io/component: smoke-test
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: smoke-test
+      image: {{ .Values.smokeTest.image }}
+      command:
+        - sh
+        - -ec
+        - |
+          base="http://{{ include "web.fullname" . }}:{{ .Values.service.port }}"
+          wget -q -T 5 -O - "$base{{ .Values.probes.readiness.path }}"
+          wget -q -T 5 -O - "$base/config.json" | grep -q '"issuer"'
+          wget -q -T 5 -S -O /dev/null "$base/" 2>&1 | grep -qi 'cache-control: no-cache'
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 32Mi
+      securityContext:
+        {{- include "web.containerSecurityContext" . | nindent 8 }}
