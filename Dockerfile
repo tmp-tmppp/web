@@ -19,7 +19,7 @@ RUN npm run bundle
 # --- runtime stage -----------------------------------------------------------------------------------------
 # The stable nginx branch (1.30), Alpine without extra modules. The image listens on 8080 as the Service "web" of the
 # gateway expects, and runs as the user 101.
-FROM nginxinc/nginx-unprivileged:1.30.6-alpine-slim@sha256:5d8bb9437d74a600ec5dbf90c035451c724dc33eac8d3a71078f6f8612c345f6 AS runtime
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine-slim@sha256:a8cb0f33d51fa107c96fd2bd3a71aaf564ec131e9d2bdf8700944f0ed8b170d7 AS runtime
 
 USER root
 # nginx.conf of the base image includes /etc/nginx/conf.d/*.conf. At start its entrypoint renders every file of
